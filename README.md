@@ -218,11 +218,44 @@ If the body was replayed, it would have to be in another message, which would ha
 a different external nonce. This would mean no one is fooled into decrypting a message
 not created by the sender.
 
+Also, since the body uses a nonce derived from the external nonce and header,
+this means that even if you pass someone the message `key` they will not decrypt
+a replayed copy of the message, following the protocol they will select a different
+nonce.
+
 As noted with private box, if messages are stored on permanent logs, an ephemeral key
 does not give us additional security. Theirfore, we just use sender*recipient as the key.
 This can be cached, and so attempting decryption of a groupbox message only uses fast
 symmetric operations. This significantly improves performance, so for the same cost,
 we may attempt many more decryptions, which is necessary for groups.
+
+## entrusting a single message key
+
+All the formats extend the basic structure established in pgp - the body of the message
+is encrypted via a symmetric key, which is used for only this message, and that symmetric
+key is encrypted to one or more recipients. This creates a possibility that the key
+used to encrypt the body could later be shared.
+
+This unavoidable feature could be used for both legitimate and illegitimate purposes.
+An example of a legitimate use may be to receive a security disclosure - some one
+privately reports a vulnerability in software, and after the fix is deployed,
+the report is transparently published. Group governance may also require private
+discussions at times, that may important to reveal at a later time.
+
+An illegitimate use would be to reveal a private message to a third party,
+without the consent of it's author. However, there are times where such
+an action is warranted, for example, if some is sending abuse or threats
+via a private message - it may be necessary to reveal or report that.
+
+Even it was some how cryptographically preventable, it would not be possible
+to prevent someone taking a screenshot a private message. On the other hand -
+such screenshots are easily doctored, but with secure scuttlebutt's authenticated
+design, at least this is prevented, if such things are easily verifyable,
+surely an unverifyable leak is not credible.
+
+The process of entrusted a such a key is simple: supply a tuple of
+the message id, and the body key to the message: `[hash(message), unboxKey(message)]`
+The body key can be obtained by decrypting the message header.
 
 ## groups
 
@@ -258,19 +291,62 @@ group key on each message - instead, only test it on the feed that group is cent
 which feeds have write access to which keys, but then I realized, this could be done with two way
 groups too, they just need a membership list. and then check the members)
 
----
+## identifying groups
 
-## adding someone to a group
+### group key as identifier
+
+If the group key is also the identity of a group, then anyone who knows the group
+exists can also decrypt or encrypt messages to it.
+It is likely that various parts of the system, such as the user interface code,
+need to handle some reference to the group -
+for example, to query the database who is a member of the given group. It would
+be risky to pass around the group key through all this code, the more code,
+the more likely a bug enables that key to be inadvertantly leaked, especially
+considering that an application developer is likely to be less security focused.
+
+### hash(group_key) as identifier
+
+By hashing the key, the group can be referred to, but leaking the group identity
+does not mean everyone can now decrypt group messages. However, if users do mistakenly
+publish references to the group publically, observers will know they are refering to
+the same group.
+
+### hmac(group_key, member_id) as identifier
+
+Another option would be to have a name for the group per member. This would mean
+two group id mentions by different members would not be linkable. To check a group id,
+you'd have to iterate over the keys for all known groups and hmac them with the
+post's author id. If the number of known groups are small, this prehaps wouldn't be
+a big problem. The worst problem with this method, is that it seems very inconvienient
+for application developers. It would be necessary to transform raw messages in query
+results so that they had a static group key, but this would be a lot of complexity,
+and would only protect the accidential linking of keys.
+
+## format of group keys
+
+### simple symmetric key
+
+The simplest method is just to have a symmetric key that is used to decrypt messages
+in the group.
+
+```
+group_key = random()
+group_id = hash(group_key)
+```
 
 If a group is just a symmetric key, then adding someone means entrusting the key to them.
 this could simply be done by posting a private message containing the key.
+(see entrusting group keys, below)
 
-reusing a key is the same as adding someone to that group, but: does the recipient realize
-that they have been added to a group. For example: if alice has a one-way group with key: k,
-and bob creates a multiway group also with key: k, then someone added to the group
-would also decrypt alice's messages, possibly without realizing alice isn't in the group.
-Bob has surreptitiously added someone to alice's group: it would be better if no one
-could add you to a group without you realizing.
+This method has a serious flaw: it would be easy to create a second group
+with the same key. If alice creates a group, then bob creates another group with the same
+key, then adds charles, charles might believe that he has joined bob's group, but
+has actually joined alice's and will now be decrypting alice's messages.
+
+## group_key = hmac(key, founding_msg_id)
+
+In this version, the group key is derived from a founding message.
+If the key is entrusted 
 
 ### just send someone the secret
 
@@ -297,3 +373,13 @@ of the encrypted secret of the group.
 The group id depends on both the plaintext key and cyphertext of that key. since we know
 the message is unique, someone that chooses to construct a group with a non-unique key
 will still end up with a unique identity.
+
+If the group is founded by generating a key, posting it inside an encrypted message,
+then deriving the group key from the key and the message id.
+
+To entrust the group key, you do not share it directly, but rather share a link
+to the message, along with the message key, the receiver must retrive the message,
+decrypt it, and retrive the plaintext, which contains the key to be combined
+with the message id.
+
+group_key = hmac(message.id, unboxBody(message, key).key)
