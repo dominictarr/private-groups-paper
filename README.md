@@ -109,7 +109,7 @@ file_nonce = random()
 cyphertext = box(file, file_key)
 
 <ephemeral.public>
-recipients.map((recipient) => {
+map(recipients, (recipient) => {
   <nonce = random(), //note, this nonce is used by both box calls, but with different keys.
     box(<sender.id, recipient.id,
       box(<file_key, file_nonce, hash(cyphertext)>, nonce, sender*recipient)
@@ -205,7 +205,7 @@ to include the hash of the cyphertext, as minilock does.
 external_nonce = hash of previous message
 key = random(32)
 nonce = random(24)
-keys = recipients.map((recipient) => { recipient * sender })
+keys = map(recipients, (recipient) => { recipient * sender })
 <nonce>
 <box(<key, keys.length>, hmac(external_nonce, nonce), keys[i])>,...
 <box(msg, hmac(header, hmac(external_nonce, nonce)), key)>
