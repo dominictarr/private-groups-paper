@@ -25,6 +25,11 @@ can be verified, even if it was received from another peer. This is a completely
 different architecture on which to implement privacy, and very little research
 has been done as to how best to privately communicate under such a model.
 
+Also, "social media" revolves around social groups. privacy for 1:1 messaging
+has been researched throughly, but for groups larger than 2, the challenges of
+cryptographic privacy are combined with the challenges of distributed systems.
+This remains an area needing exploration.
+
 In this paper we investigate what relavant prior art we were able to find,
 and as well as design a system for private communication, with individuals and
 groups, as best we are able. Although this is a serious attempt we do not claim this
@@ -346,7 +351,7 @@ has actually joined alice's and will now be decrypting alice's messages.
 ## group_key = hmac(key, founding_msg_id)
 
 In this version, the group key is derived from a founding message.
-If the key is entrusted 
+If the key is entrusted by generating the key, 
 
 ### just send someone the secret
 
